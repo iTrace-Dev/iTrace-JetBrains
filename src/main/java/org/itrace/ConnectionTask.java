@@ -9,7 +9,7 @@ public class ConnectionTask extends Task.Backgroundable {
     private Project project;
 
     public ConnectionTask(@NotNull Project project) {
-        super(project, "Connecting to iTrace Core", true); // "true" means the task can be canceled
+        super(project, "Connecting to iTrace Core", false); // "true" means the task can be canceled
         this.project = project;
     }
 
