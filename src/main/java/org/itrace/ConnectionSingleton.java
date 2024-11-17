@@ -3,8 +3,13 @@ package org.itrace;
 import java.awt.*;
 import java.io.*;
 import java.net.Socket;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.intellij.notification.NotificationType;
+import com.intellij.notification.Notification;
+import com.intellij.notification.Notifications;
+import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.fileEditor.FileEditorManager;
@@ -14,6 +19,8 @@ import com.intellij.openapi.editor.Editor;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+
 
 public class ConnectionSingleton {
     private static ConnectionSingleton instance;
@@ -53,13 +60,15 @@ public class ConnectionSingleton {
 
             if(tokens[0].equals("session_start")) {
                 indicator.setText("Session starting");
+                String ide = ApplicationInfo.getInstance().getFullApplicationName().split(" ")[0];
                 try {
-                    xmlFile = new BufferedWriter(new FileWriter(tokens[3]+String.format("\\itrace_jetbrains-%s.xml",System.currentTimeMillis()), true));
+                    xmlFile = new BufferedWriter(new FileWriter(tokens[3]+String.format("\\itrace_%s-%d.xml",ide.toLowerCase(),System.currentTimeMillis()), true));
                     xmlFile.write("<?xml version=\"1.0\"?>\n");
                     xmlFile.write("<itrace_plugin session_id=\"" + tokens[1] + "\">\n");
-                    xmlFile.write(String.format("    <environment screen_width=\"%d\" screen_height=\"%d\" plugin_type=\"JETBRAINS\"/>\n",
+                    xmlFile.write(String.format("    <environment screen_width=\"%d\" screen_height=\"%d\" plugin_type=\"%s\"/>\n",
                             Toolkit.getDefaultToolkit().getScreenSize().width,
-                            Toolkit.getDefaultToolkit().getScreenSize().height));
+                            Toolkit.getDefaultToolkit().getScreenSize().height,
+                            ide.toUpperCase()));
                     xmlFile.write("    <gazes>\n");
                 }
                 catch (IOException e) {
