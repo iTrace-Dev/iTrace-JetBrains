@@ -128,7 +128,7 @@ public class ConnectionSingleton {
                         line = logicalPosition.line + 1;
                         column = logicalPosition.column + 1;
 
-                        Document doc = FileEditorManager.getInstance(project).getSelectedTextEditor().getDocument();
+                        Document doc = editor.getDocument();
                         String[] text_lines = doc.getText().split("\n");
                         if (logicalPosition.line >= text_lines.length) {
                             line = -1;
