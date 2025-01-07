@@ -3,9 +3,15 @@ package org.itrace;
 import java.awt.*;
 import java.io.*;
 import java.net.Socket;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
+import com.intellij.notification.NotificationType;
+import com.intellij.notification.Notification;
+import com.intellij.notification.Notifications;
+import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.progress.ProgressIndicator;
@@ -14,6 +20,8 @@ import com.intellij.openapi.editor.Editor;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+
+
 
 public class ConnectionSingleton {
     private static ConnectionSingleton instance;
@@ -29,7 +37,9 @@ public class ConnectionSingleton {
         return instance;
     }
 
-    private ConnectionSingleton() {
+    private ConnectionSingleton() { }
+
+    public void ProcessCoreData(@Nullable Project project, @NotNull ProgressIndicator indicator) {
         try {
             socket = new Socket(hostName,port);
             in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
@@ -38,9 +48,7 @@ public class ConnectionSingleton {
             System.err.println("Connection Error - iTrace-Core might not be running");
             throw new RuntimeException(e);
         }
-    }
 
-    public void ProcessCoreData(@Nullable Project project, @NotNull ProgressIndicator indicator) {
         while(socket != null && !socket.isClosed()) {
             String data = null;
             try {
@@ -53,13 +61,15 @@ public class ConnectionSingleton {
 
             if(tokens[0].equals("session_start")) {
                 indicator.setText("Session starting");
+                String ide = ApplicationInfo.getInstance().getFullApplicationName().split(" ")[0];
                 try {
-                    xmlFile = new BufferedWriter(new FileWriter(tokens[3]+String.format("\\itrace_jetbrains-%s.xml",System.currentTimeMillis()), true));
+                    xmlFile = new BufferedWriter(new FileWriter(tokens[3]+String.format("\\itrace_%s-%d.xml",ide.toLowerCase(),System.currentTimeMillis()), true));
                     xmlFile.write("<?xml version=\"1.0\"?>\n");
                     xmlFile.write("<itrace_plugin session_id=\"" + tokens[1] + "\">\n");
-                    xmlFile.write(String.format("    <environment screen_width=\"%d\" screen_height=\"%d\" plugin_type=\"JETBRAINS\"/>\n",
+                    xmlFile.write(String.format("    <environment screen_width=\"%d\" screen_height=\"%d\" plugin_type=\"%s\"/>\n",
                             Toolkit.getDefaultToolkit().getScreenSize().width,
-                            Toolkit.getDefaultToolkit().getScreenSize().height));
+                            Toolkit.getDefaultToolkit().getScreenSize().height,
+                            ide.toUpperCase()));
                     xmlFile.write("    <gazes>\n");
                 }
                 catch (IOException e) {
@@ -78,6 +88,7 @@ public class ConnectionSingleton {
                     throw new RuntimeException(e);
                 }
                 indicator.setText("Session ended.");
+                System.out.println("Session ended");
             }
 
             else if(tokens[0].equals("gaze")) {
@@ -85,26 +96,51 @@ public class ConnectionSingleton {
                     int x = Integer.parseInt(tokens[2]);
                     int y = Integer.parseInt(tokens[3]);
                     Editor editor = FileEditorManager.getInstance(project).getSelectedTextEditor();
+                    if(editor == null) {
+                        continue;
+                    }
                     int line_height = -1;//editor.getComponent().getFontMetrics(editor.getColorsScheme().getFontPreferences().getFontType()).getHeight();
                     float font_size = editor.getColorsScheme().getEditorFontSize2D();
                     String filename = FileEditorManager.getInstance(project).getSelectedFiles()[0].getPath();
                     int editor_x = editor.getContentComponent().getLocationOnScreen().x;
                     int editor_y = editor.getContentComponent().getLocationOnScreen().y;
-                    Point gaze_point = new Point(x-editor_x,y-editor_y);
-                    //LogicalPosition logicalPosition = editor.xyToLogicalPosition(gaze_point);
 
-                    AtomicReference<LogicalPosition> logicalPositionRef = new AtomicReference<>();
+                    int line;
+                    int column;
 
-                    ApplicationManager.getApplication().invokeAndWait(() -> {
-                        // Safely access xyToLogicalPosition on the EDT
-                        logicalPositionRef.set(editor.xyToLogicalPosition(gaze_point));
-                    });
+                    if(x - editor_x < 0 || y - editor_y < 0) {
+                        line = -1;
+                        column = -1;
+                    }
+                    else {
 
-                    LogicalPosition logicalPosition = logicalPositionRef.get();
+                        Point gaze_point = new Point(x - editor_x, y - editor_y);
 
-                    indicator.setText(tokens[2]+","+tokens[3]+" -> " + String.valueOf(logicalPosition.line+1) +","+String.valueOf(logicalPosition.column+1));
+                        AtomicReference<LogicalPosition> logicalPositionRef = new AtomicReference<>();
 
+                        ApplicationManager.getApplication().invokeAndWait(() -> {
+                            // Safely access xyToLogicalPosition on the EDT
+                            logicalPositionRef.set(editor.xyToLogicalPosition(gaze_point));
+                        });
 
+                        LogicalPosition logicalPosition = logicalPositionRef.get();
+
+                        line = logicalPosition.line + 1;
+                        column = logicalPosition.column + 1;
+
+                        Document doc = editor.getDocument();
+                        String[] text_lines = doc.getText().split("\n");
+                        if (logicalPosition.line >= text_lines.length) {
+                            line = -1;
+                            column = -1;
+                        } else if (logicalPosition.column >= text_lines[logicalPosition.line].length()) {
+                            line = -1;
+                            column = -1;
+                        }
+                    }
+
+                    indicator.setText(tokens[2]+","+tokens[3]+" -> " + String.valueOf(line) +","+String.valueOf(column));
+//                    indicator.setText(String.valueOf(editor_x)+","+String.valueOf(editor_y)+" -> " + String.valueOf(line) +","+String.valueOf(column));
                     xmlFile.write(String.format("        <response event_id=\"%s\" plugin_time=\"%d\" x=\"%d\" y=\"%d\" gaze_target=\"%s\" gaze_target_type=\"%s\" source_file_path=\"%s\" source_file_line=\"%d\" source_file_col=\"%d\" editor_line_height=\"%s\" editor_font_height=\"%f\" editor_line_base_x=\"\" editor_line_base_y=\"\"/>\n",
                                   tokens[1], // event ID
                                   System.currentTimeMillis(), //Plugin Time
@@ -113,8 +149,8 @@ public class ConnectionSingleton {
                                   filename.split("/")[filename.split("/").length-1], // Gaze Target
                                   filename.split("\\.")[filename.split("\\.").length-1], // Gaze Target Type
                                   filename, // Source File Path
-                                  logicalPosition.line+1, // Source File Line
-                                  logicalPosition.column+1, // Source File Column
+                                  line, // Source File Line
+                                  column, // Source File Column
                                   line_height, // Line Height
                                   font_size // Editor Font Height
                             ));
@@ -133,6 +169,7 @@ public class ConnectionSingleton {
         }
         catch (IOException e) {
             System.err.println("Error closing connection: " + e.getMessage());
+            throw new RuntimeException(e);
         }
         finally {
             socket = null;
