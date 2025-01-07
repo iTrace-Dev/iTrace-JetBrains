@@ -16,6 +16,7 @@ To use iTrace-JetBrains, make sure you have iTrace-Core installed.
 3. Go to the "Tools" tab in your JetBrains editor.
 4. Select "Connect to iTrace-Core". If the connection is successful, a notification at the bottom of the screen should alert you.
 5. iTrace-JetBrains is now connected, you can control the tracking session using iTrace-Core.
+6. Once a tracking session is started, iTrace-JetBrains will begin writing to a file in the location specified in iTrace-Core. When the tracking session is finished, two files will be present - one from iTrace-JetBrains and the other from iTrace-Core. iTrace-JetBrains will recongize which JetBrains IDE you are using and automatically name the file appropriately.
 
 # How to Install From Source
 If you want to install or run the plugin from source, follow these steps:
@@ -31,3 +32,6 @@ To build the plugin for distribution and installation, follow these steps:
 2. Select View->Tool Windows->Terminal.
 3. Run `.\gradlew buildPlugin` in the opened terminal.
 4. After running, the built plugin will be in the `build\distributions`.
+
+# Further Steps
+After gathering your data, you can use our other tools [iTrace-Toolkit](https://github.com/iTrace-Dev/iTrace-Toolkit) and [iTrace-Visualize](https://github.com/iTrace-Dev/iTrace-Visualize) to analyze and process the tracking sessions.
