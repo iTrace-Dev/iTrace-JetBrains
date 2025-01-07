@@ -96,6 +96,9 @@ public class ConnectionSingleton {
                     int x = Integer.parseInt(tokens[2]);
                     int y = Integer.parseInt(tokens[3]);
                     Editor editor = FileEditorManager.getInstance(project).getSelectedTextEditor();
+                    if(editor == null) {
+                        continue;
+                    }
                     int line_height = -1;//editor.getComponent().getFontMetrics(editor.getColorsScheme().getFontPreferences().getFontType()).getHeight();
                     float font_size = editor.getColorsScheme().getEditorFontSize2D();
                     String filename = FileEditorManager.getInstance(project).getSelectedFiles()[0].getPath();
