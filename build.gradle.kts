@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "org.itrace"
-version = "0.2.0"
+version = "0.2.1"
 
 repositories {
     mavenCentral()
@@ -16,8 +16,7 @@ repositories {
 intellij {
     version.set("2024.3")
     type.set("IC") // Target IDE Platform
-
-    plugins.set(listOf(/* Plugin Dependencies */))
+    updateSinceUntilBuild.set(false)
 }
 
 tasks {
@@ -32,7 +31,6 @@ tasks {
 
     patchPluginXml {
         sinceBuild.set("232")
-        untilBuild.set("243.*")
     }
 
     signPlugin {
