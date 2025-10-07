@@ -13,14 +13,19 @@ import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.LogicalPosition;
+import com.intellij.openapi.fileEditor.FileDocumentManager;
+import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
+import com.intellij.openapi.fileEditor.TextEditor;
 import com.intellij.openapi.progress.ProgressIndicator;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.editor.Editor;
 
+import com.intellij.openapi.vfs.VirtualFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.swing.*;
 
 
 public class ConnectionSingleton {
@@ -95,13 +100,35 @@ public class ConnectionSingleton {
                 try {
                     int x = Integer.parseInt(tokens[2]);
                     int y = Integer.parseInt(tokens[3]);
-                    Editor editor = FileEditorManager.getInstance(project).getSelectedTextEditor();
+
+                    FileEditorManager fileEditorManager = FileEditorManager.getInstance(project);
+                    FileEditor[] editors = fileEditorManager.getAllEditors();
+
+                    Editor editor = null;
+
+                    for (FileEditor fe : editors) {
+                        if (!(fe instanceof TextEditor textEditor)) {
+                            continue;
+                        }
+
+                        Editor e = textEditor.getEditor();
+                        JComponent comp = e.getComponent();
+                        Point loc = comp.getLocationOnScreen();
+                        Rectangle bounds = new Rectangle(loc.x, loc.y, comp.getWidth(), comp.getHeight());
+
+                        if (bounds.contains(x,y)) {
+                            editor = e;
+                            break;
+                        }
+                    }
+                    
                     if(editor == null) {
                         continue;
                     }
                     int line_height = -1;//editor.getComponent().getFontMetrics(editor.getColorsScheme().getFontPreferences().getFontType()).getHeight();
                     float font_size = editor.getColorsScheme().getEditorFontSize2D();
-                    String filename = FileEditorManager.getInstance(project).getSelectedFiles()[0].getPath();
+                    VirtualFile vf = FileDocumentManager.getInstance().getFile(editor.getDocument());
+                    String filename = (vf != null ? vf.getPath() : "");
                     int editor_x = editor.getContentComponent().getLocationOnScreen().x;
                     int editor_y = editor.getContentComponent().getLocationOnScreen().y;
 
@@ -118,9 +145,10 @@ public class ConnectionSingleton {
 
                         AtomicReference<LogicalPosition> logicalPositionRef = new AtomicReference<>();
 
+                        Editor finalEditor = editor; // Need to do this so it's "final"?
                         ApplicationManager.getApplication().invokeAndWait(() -> {
                             // Safely access xyToLogicalPosition on the EDT
-                            logicalPositionRef.set(editor.xyToLogicalPosition(gaze_point));
+                            logicalPositionRef.set(finalEditor.xyToLogicalPosition(gaze_point));
                         });
 
                         LogicalPosition logicalPosition = logicalPositionRef.get();
