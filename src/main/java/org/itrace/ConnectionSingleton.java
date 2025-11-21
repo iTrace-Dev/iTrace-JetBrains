@@ -113,6 +113,9 @@ public class ConnectionSingleton {
 
                         Editor e = textEditor.getEditor();
                         JComponent comp = e.getComponent();
+                        if (!comp.isShowing()) { // component is hidden (likely a not focused on tab)
+                            continue;
+                        }
                         Point loc = comp.getLocationOnScreen();
                         Rectangle bounds = new Rectangle(loc.x, loc.y, comp.getWidth(), comp.getHeight());
 
@@ -121,7 +124,7 @@ public class ConnectionSingleton {
                             break;
                         }
                     }
-                    
+
                     if(editor == null) {
                         continue;
                     }
