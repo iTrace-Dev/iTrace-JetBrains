@@ -3,12 +3,11 @@ package org.itrace;
 import java.awt.*;
 import java.io.*;
 import java.net.Socket;
-import java.util.Locale;
+
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.intellij.notification.NotificationType;
-import com.intellij.notification.Notification;
-import com.intellij.notification.Notifications;
 import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Document;
@@ -22,10 +21,13 @@ import com.intellij.openapi.project.Project;
 import com.intellij.openapi.editor.Editor;
 
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.util.messages.MessageBusConnection;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import com.intellij.openapi.editor.event.DocumentEvent;
+import com.intellij.openapi.editor.event.DocumentListener;
 
 
 public class ConnectionSingleton {
@@ -34,8 +36,20 @@ public class ConnectionSingleton {
     private BufferedReader in;
     private BufferedWriter xmlFile;
 
+    private final Map<Document, DocumentListener> activeListeners = new HashMap<>();
+    private MessageBusConnection connection;
+
     private final String hostName = "127.0.0.1";
     private final int port = 8008;
+
+    private static String escape(String s) {
+        return s.replace("&", "&amp")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"","&quot;")
+                .replace("\n","\\n")
+                .replace("\t","\\t");
+    }
 
     public static ConnectionSingleton getInstance() {
         if(instance == null) { instance = new ConnectionSingleton(); }
@@ -43,6 +57,77 @@ public class ConnectionSingleton {
     }
 
     private ConnectionSingleton() { }
+
+
+    private void AttachListeners(Project project) {
+        FileEditorManager editorManager = FileEditorManager.getInstance(project);
+
+        for (FileEditor fileEditor : editorManager.getAllEditors()) {
+            if (fileEditor instanceof TextEditor textEditor) {
+                Editor editor = textEditor.getEditor();
+                Document doc = editor.getDocument();
+
+                if (activeListeners.containsKey(doc)) continue;
+
+
+                DocumentListener listener = new DocumentListener() {
+                    @Override
+                    public void documentChanged(@NotNull DocumentEvent event) {
+                        HandleEditEvent(editor, event);
+                    }
+                };
+
+                doc.addDocumentListener(listener);
+                activeListeners.put(doc, listener);
+            }
+        }
+    }
+
+    private void DetachListeners() {
+        for (Map.Entry<Document, DocumentListener> entry : activeListeners.entrySet()) {
+            entry.getKey().removeDocumentListener(entry.getValue());
+        }
+        activeListeners.clear();
+    }
+
+    private void AttachEditorListener(Project project) {
+
+    }
+
+    private void HandleEditEvent(Editor editor, DocumentEvent event) {
+        Document doc = event.getDocument();
+
+        int offset = event.getOffset();
+        int line = doc.getLineNumber(offset);
+        int col = offset - doc.getLineStartOffset(line);
+
+        String inserted = event.getNewFragment().toString();
+        String deleted = event.getOldFragment().toString();
+
+        VirtualFile vf = FileDocumentManager.getInstance().getFile(doc);
+        String path = (vf != null ? vf.getPath() : "");
+
+        WriteEditToXML(path, line + 1, col + 1, inserted, deleted);
+    }
+
+    private void WriteEditToXML(String path, int line, int col, String inserted, String deleted) {
+
+        try {
+            xmlFile.write(String.format("    <edit timestamp=\"%d\" source_file_path=\"%s\" source_file_line=\"%d\" source_file_col=\"%d\" inserted=\"%s\" deleted=\"%s\"/>\n",
+                    System.currentTimeMillis(), // Plugin time
+                    path, // File path
+                    line, // Source File Line Number
+                    col, // Source File Column Number
+                    escape(inserted), // Inserted Text
+                    escape(deleted) // Deleted text
+            ));
+        }
+        catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+
+    }
 
     public void ProcessCoreData(@Nullable Project project, @NotNull ProgressIndicator indicator) {
         try {
@@ -80,6 +165,8 @@ public class ConnectionSingleton {
                 catch (IOException e) {
                     throw new RuntimeException(e);
                 }
+
+                AttachListeners(project);
             }
 
             else if(tokens[0].equals("session_end")) {
@@ -92,6 +179,9 @@ public class ConnectionSingleton {
                 catch (IOException e) {
                     throw new RuntimeException(e);
                 }
+
+                DetachListeners();
+
                 indicator.setText("Session ended.");
                 System.out.println("Session ended");
             }
@@ -171,7 +261,6 @@ public class ConnectionSingleton {
                     }
 
                     indicator.setText(tokens[2]+","+tokens[3]+" -> " + String.valueOf(line) +","+String.valueOf(column));
-//                    indicator.setText(String.valueOf(editor_x)+","+String.valueOf(editor_y)+" -> " + String.valueOf(line) +","+String.valueOf(column));
                     xmlFile.write(String.format("        <response event_id=\"%s\" plugin_time=\"%d\" x=\"%d\" y=\"%d\" gaze_target=\"%s\" gaze_target_type=\"%s\" source_file_path=\"%s\" source_file_line=\"%d\" source_file_col=\"%d\" editor_line_height=\"%s\" editor_font_height=\"%f\" editor_line_base_x=\"\" editor_line_base_y=\"\"/>\n",
                                   tokens[1], // event ID
                                   System.currentTimeMillis(), //Plugin Time
