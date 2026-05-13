@@ -107,13 +107,13 @@ public class ConnectionSingleton {
         VirtualFile vf = FileDocumentManager.getInstance().getFile(doc);
         String path = (vf != null ? vf.getPath() : "");
 
-        WriteEditToXML(path, line + 1, col + 1, inserted, deleted);
+        WriteTextEventToXML(path, line + 1, col + 1, inserted, deleted);
     }
 
-    private void WriteEditToXML(String path, int line, int col, String inserted, String deleted) {
+    private void WriteTextEventToXML(String path, int line, int col, String inserted, String deleted) {
 
         try {
-            xmlFile.write(String.format("    <edit timestamp=\"%d\" source_file_path=\"%s\" source_file_line=\"%d\" source_file_col=\"%d\" inserted=\"%s\" deleted=\"%s\"/>\n",
+            xmlFile.write(String.format("        <text_event timestamp=\"%d\" source_file_path=\"%s\" source_file_line=\"%d\" source_file_col=\"%d\" inserted=\"%s\" deleted=\"%s\"/>\n",
                     System.currentTimeMillis(), // Plugin time
                     path, // File path
                     line, // Source File Line Number
