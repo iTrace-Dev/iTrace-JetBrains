@@ -4,6 +4,7 @@ import java.awt.*;
 import java.io.*;
 import java.net.Socket;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -12,6 +13,7 @@ import com.intellij.openapi.application.ApplicationInfo;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.LogicalPosition;
+import com.intellij.openapi.editor.event.BulkAwareDocumentListener;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
@@ -70,11 +72,43 @@ public class ConnectionSingleton {
                 if (activeListeners.containsKey(doc)) continue;
 
 
-                DocumentListener listener = new DocumentListener() {
+                BulkAwareDocumentListener listener = new BulkAwareDocumentListener.Simple () {
+                    private boolean inBulk = false;
+                    private final ArrayList<DocumentEvent> bufferedEvents = new ArrayList<>();
+
+                    @Override
+                    public void beforeDocumentChange(@NotNull DocumentEvent event) {
+                        if (inBulk) {
+                            bufferedEvents.add(event);
+                        }
+                    }
+
                     @Override
                     public void documentChanged(@NotNull DocumentEvent event) {
-                        HandleEditEvent(editor, event);
+                        if (inBulk) {
+                            bufferedEvents.add(event);
+                        } else {
+                            HandleEditEvent(editor, event);
+                        }
                     }
+
+                    @Override
+                    public void bulkUpdateStarting(@NotNull Document document) {
+                        inBulk = true;
+                        bufferedEvents.clear();
+                    }
+
+                    @Override
+                    public void bulkUpdateFinished(@NotNull Document document) {
+                        inBulk = false;
+
+                        for (DocumentEvent e : bufferedEvents) {
+                            HandleEditEvent(editor, e);
+                        }
+
+                        bufferedEvents.clear();
+                    }
+
                 };
 
                 doc.addDocumentListener(listener);
