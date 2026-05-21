@@ -124,10 +124,6 @@ public class ConnectionSingleton {
         activeListeners.clear();
     }
 
-    private void AttachEditorListener(Project project) {
-
-    }
-
     private void HandleEditEvent(Editor editor, DocumentEvent event) {
         Document doc = event.getDocument();
 
